@@ -1,0 +1,6 @@
+{
+  "name": "Generative AI Quiz Generator",
+  "description": "AI-powered quiz generator with JWT authentication, Gemini API quiz creation, timer, scoring, answer explanations, and SQLite history tracking.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
