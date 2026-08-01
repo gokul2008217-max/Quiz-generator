@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { Clock, ArrowRight, ArrowLeft, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Clock, ArrowRight, ArrowLeft, CheckCircle2, AlertTriangle, Loader2, Send } from 'lucide-react';
 import api from '../api/client';
 import { QuizQuestion, UserAnswer, QuizSubmissionResult } from '../types';
 
@@ -20,6 +20,7 @@ export const QuizActive: React.FC = () => {
   const [timeLeft, setTimeLeft] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState<boolean>(false);
   const [showConfirmModal, setShowConfirmModal] = useState<boolean>(false);
+  const [submitError, setSubmitError] = useState<string>('');
 
   useEffect(() => {
     const raw = sessionStorage.getItem('active_quiz');
@@ -71,6 +72,7 @@ export const QuizActive: React.FC = () => {
   const submitQuiz = async () => {
     if (!quizData || submitting) return;
     setSubmitting(true);
+    setSubmitError('');
 
     try {
       const answersList: UserAnswer[] = Object.entries(selectedAnswers).map(([qId, optIdx]) => ({
@@ -93,7 +95,7 @@ export const QuizActive: React.FC = () => {
       navigate(`/quiz/results/${res.data.attemptId}`);
     } catch (err: any) {
       console.error('Submission failed:', err);
-      alert('Failed to submit quiz. Please try again.');
+      setSubmitError(err.response?.data?.error || 'Failed to submit quiz. Please check your connection and try again.');
       setSubmitting(false);
     }
   };
@@ -101,6 +103,7 @@ export const QuizActive: React.FC = () => {
   if (!quizData) {
     return (
       <div className="min-h-screen bg-[#09090B] flex items-center justify-center text-zinc-400 text-sm">
+        <Loader2 className="w-5 h-5 animate-spin text-indigo-400 mr-2" />
         Loading quiz session...
       </div>
     );
@@ -118,6 +121,24 @@ export const QuizActive: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-[#09090B] text-zinc-100 p-4 sm:p-8 flex flex-col items-center justify-center relative">
+      {/* Submitting Loading Overlay */}
+      {submitting && (
+        <div className="fixed inset-0 bg-black/90 backdrop-blur-md flex flex-col items-center justify-center p-6 z-50 text-center space-y-4 animate-fade-in">
+          <div className="relative">
+            <div className="w-16 h-16 rounded-2xl bg-indigo-600/20 border border-indigo-500/30 flex items-center justify-center text-indigo-400">
+              <Loader2 className="w-8 h-8 animate-spin" />
+            </div>
+            <div className="absolute -top-1 -right-1 w-4 h-4 bg-emerald-500 rounded-full animate-ping" />
+          </div>
+          <div className="space-y-1">
+            <h3 className="text-xl font-bold text-zinc-100">Submitting Your Quiz...</h3>
+            <p className="text-xs text-zinc-400 max-w-sm mx-auto">
+              Scoring your responses, recording your metrics, and generating detailed AI feedback.
+            </p>
+          </div>
+        </div>
+      )}
+
       {/* Quiz Container */}
       <div className="w-full max-w-3xl bg-zinc-900 border border-zinc-800 rounded-2xl shadow-2xl overflow-hidden flex flex-col">
         {/* Top Header Bar */}
@@ -131,19 +152,33 @@ export const QuizActive: React.FC = () => {
             </h2>
           </div>
 
-          {/* Timer Display */}
-          {timeLeft !== null && (
-            <div
-              className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border font-mono text-sm font-bold ${
-                timeLeft < 30
-                  ? 'bg-red-500/10 text-red-400 border-red-500/30 animate-pulse'
-                  : 'bg-zinc-800 text-zinc-200 border-zinc-700'
-              }`}
+          <div className="flex items-center gap-3">
+            {/* Quick Submit Shortcut */}
+            <button
+              type="button"
+              onClick={() => setShowConfirmModal(true)}
+              disabled={submitting}
+              className="px-3 py-1.5 rounded-xl bg-zinc-800 hover:bg-zinc-700 text-zinc-200 text-xs font-medium flex items-center gap-1.5 transition-colors border border-zinc-700"
+              title="Submit early"
             >
-              <Clock className="w-4 h-4" />
-              <span>{formatTime(timeLeft)}</span>
-            </div>
-          )}
+              <Send className="w-3.5 h-3.5 text-emerald-400" />
+              <span className="hidden sm:inline">Finish Early</span>
+            </button>
+
+            {/* Timer Display */}
+            {timeLeft !== null && (
+              <div
+                className={`flex items-center gap-2 px-3.5 py-1.5 rounded-xl border font-mono text-sm font-bold ${
+                  timeLeft < 30
+                    ? 'bg-red-500/10 text-red-400 border-red-500/30 animate-pulse'
+                    : 'bg-zinc-800 text-zinc-200 border-zinc-700'
+                }`}
+              >
+                <Clock className="w-4 h-4" />
+                <span>{formatTime(timeLeft)}</span>
+              </div>
+            )}
+          </div>
         </div>
 
         {/* Progress Bar */}
@@ -153,6 +188,19 @@ export const QuizActive: React.FC = () => {
             style={{ width: `${((currentIdx + 1) / totalQuestions) * 100}%` }}
           />
         </div>
+
+        {/* Error Banner if any */}
+        {submitError && (
+          <div className="p-4 bg-red-500/10 border-b border-red-500/20 text-red-400 text-xs flex items-center justify-between gap-2">
+            <span>{submitError}</span>
+            <button
+              onClick={() => setSubmitError('')}
+              className="text-xs underline hover:text-red-300 font-bold"
+            >
+              Dismiss
+            </button>
+          </div>
+        )}
 
         {/* Question & Options Area */}
         <div className="p-6 sm:p-8 space-y-6 flex-1">
@@ -170,6 +218,7 @@ export const QuizActive: React.FC = () => {
                   key={optIdx}
                   type="button"
                   onClick={() => handleSelectOption(currentQuestion.id, optIdx)}
+                  disabled={submitting}
                   className={`w-full text-left p-4 rounded-xl border transition-all flex items-center gap-4 ${
                     isSelected
                       ? 'bg-indigo-600/15 border-indigo-500 text-zinc-100 shadow-md shadow-indigo-600/10'
@@ -197,7 +246,7 @@ export const QuizActive: React.FC = () => {
         <div className="p-6 border-t border-zinc-800/80 bg-zinc-950/60 flex items-center justify-between gap-4">
           <button
             type="button"
-            disabled={currentIdx === 0}
+            disabled={currentIdx === 0 || submitting}
             onClick={() => setCurrentIdx((prev) => prev - 1)}
             className="px-4 py-2.5 rounded-xl border border-zinc-800 bg-zinc-900 hover:bg-zinc-800 text-zinc-300 text-xs font-semibold flex items-center gap-2 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
           >
@@ -206,12 +255,13 @@ export const QuizActive: React.FC = () => {
           </button>
 
           <span className="text-xs text-zinc-500 font-medium">
-            Answered: {answeredCount}/{totalQuestions}
+            Answered: <strong className="text-zinc-300">{answeredCount}</strong>/{totalQuestions}
           </span>
 
           {currentIdx < totalQuestions - 1 ? (
             <button
               type="button"
+              disabled={submitting}
               onClick={() => setCurrentIdx((prev) => prev + 1)}
               className="px-5 py-2.5 rounded-xl bg-indigo-600 hover:bg-indigo-500 text-white text-xs font-semibold flex items-center gap-2 transition-colors shadow-lg shadow-indigo-600/20"
             >
@@ -240,18 +290,24 @@ export const QuizActive: React.FC = () => {
               <AlertTriangle className="w-5 h-5" />
             </div>
             <div>
-              <h4 className="text-lg font-bold text-zinc-100">Submit Quiz?</h4>
-              <p className="text-xs text-zinc-400 mt-1">
-                You have answered {answeredCount} out of {totalQuestions} questions. Are you sure you want to finish and calculate your score?
+              <h4 className="text-lg font-bold text-zinc-100">Submit Quiz Now?</h4>
+              <p className="text-xs text-zinc-400 mt-1 leading-relaxed">
+                You have answered <strong className="text-indigo-400">{answeredCount}</strong> out of <strong className="text-zinc-200">{totalQuestions}</strong> questions.
+                {answeredCount < totalQuestions && (
+                  <span className="block mt-1 text-amber-400 font-medium">
+                    ⚠️ {totalQuestions - answeredCount} question{totalQuestions - answeredCount > 1 ? 's are' : ' is'} still unanswered.
+                  </span>
+                )}
               </p>
             </div>
             <div className="flex items-center justify-end gap-3 pt-2">
               <button
                 type="button"
                 onClick={() => setShowConfirmModal(false)}
+                disabled={submitting}
                 className="px-4 py-2 rounded-xl text-xs font-semibold text-zinc-400 hover:text-zinc-200 bg-zinc-800"
               >
-                Continue Quiz
+                Keep Answering
               </button>
               <button
                 type="button"
@@ -260,9 +316,10 @@ export const QuizActive: React.FC = () => {
                   submitQuiz();
                 }}
                 disabled={submitting}
-                className="px-5 py-2 rounded-xl text-xs font-semibold bg-indigo-600 hover:bg-indigo-500 text-white"
+                className="px-5 py-2 rounded-xl text-xs font-semibold bg-emerald-600 hover:bg-emerald-500 text-white flex items-center gap-2"
               >
-                {submitting ? 'Submitting...' : 'Yes, Submit Now'}
+                {submitting && <Loader2 className="w-3.5 h-3.5 animate-spin" />}
+                <span>{submitting ? 'Submitting...' : 'Confirm Submission'}</span>
               </button>
             </div>
           </div>
@@ -271,3 +328,4 @@ export const QuizActive: React.FC = () => {
     </div>
   );
 };
+
